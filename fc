@@ -1,0 +1,5 @@
+#!/usr/bin/sbcl --script
+(load "~/quicklisp/setup.lisp")
+(ql:quickload 'feedcircuit)
+(let ((config (with-open-file (f "config") (read f))))
+  (apply #'feedcircuit:new-ebook config))
