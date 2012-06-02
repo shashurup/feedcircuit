@@ -1,0 +1,66 @@
+#!/usr/bin/python2
+import subprocess
+import signal
+
+code = r""""
+
+(load "~/quicklisp/setup.lisp")
+(ql:quickload 'feedcircuit)
+(ql:quickload 's-http-server)
+(rename-package :s-http-server :sfs)
+
+(defun write-text-response (request stream &optional text)
+  (unless text (setf (sfs:get-keep-alive request) nil))
+  (sfs:write-http-response-status-line stream)
+  (sfs:write-http-response-headers
+    (sfs:standard-http-response-headers
+      request :content-type "text/plain;charset=utf-8"
+      :content-length (when text (file-string-length stream text))) stream)
+  (sfs:write-http-response-line "" stream)
+  (when text (write-string text stream))
+  t)
+
+(defun list-handler (server handler request stream)
+  (declare (ignore server))
+  (let ((body (format nil "~{~a~^~%~}"
+                      (mapcar #'file-namestring
+                              (feedcircuit:list-ebooks (second handler))))))
+    (write-text-response request stream body)))
+
+(defun sync-handler (server handler request stream)
+  (declare (ignore server))
+  (write-text-response request stream)
+  (let ((config (with-open-file (f (second handler)) (read f)))
+        (b-out (make-broadcast-stream stream *standard-output*))
+        (b-err (make-broadcast-stream stream *error-output*)))
+    (let ((*standard-output* b-out)
+          (*error-output* b-err))
+      (apply #'feedcircuit:new-ebook config))))
+
+(let* ((server (sfs:make-s-http-server :port 8889))
+       (config-file "config")
+       (config (with-open-file (f config-file) (read f)))
+       (root-dir (namestring (merge-pathnames (or (getf config :root-dir) "")))))
+  (sfs:register-context-handler server "/sync" #'sync-handler
+    :arguments (list config-file))
+  (sfs:register-context-handler server "/list" #'list-handler
+    :arguments (list root-dir))
+  (sfs:register-context-handler server "/" #'sfs:static-resource-handler
+    :arguments (list root-dir) :at-end-p t)
+  (sfs:start-server server)
+  (handler-case (read) (serious-condition ())))
+
+"""
+
+lisp = ["/usr/bin/sbcl", "--noinform", "--disable-ldb", "--lose-on-corruption",
+        "--end-runtime-options", "--no-userinit", "--no-sysinit",
+        "--disable-debugger", "--noprint", "--end-toplevel-options"]
+
+proc = subprocess.Popen(lisp, stdin=subprocess.PIPE)
+proc.stdin.write(code[1:])
+proc.stdin.flush()
+try:
+  proc.wait()
+except:
+  pass
+proc.stdin.close()
