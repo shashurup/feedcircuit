@@ -684,11 +684,23 @@
           (pack-ebook ebook-root pack-cmd)))
       (cl-fad:delete-directory-and-files ebook-root :if-does-not-exist :ignore))))
 
+(defun ebook-from-feeds (&key (work-dir "") (cache-dir *cache-dir*) (days 8) feeds)
+  (let* ((index-file (merge-pathnames ".index" (merge-pathnames work-dir)))
+         (result (make-ebook work-dir
+                             (generate-ebook-name work-dir)
+                              #'(lambda (dir) (sync :root-dir (namestring dir)
+                                                    :cache-dir cache-dir
+                                                    :feeds feeds 
+                                                    :index-file index-file))))) 
+    (when result
+      (get-rid-of-old-ebooks work-dir days)
+      result)))
+
 (defun ebook-from-urls (urls &optional (work-dir ""))
   (make-ebook work-dir (generate-ebook-name work-dir)
               #'(lambda (dir) (loop for url in urls collect (cache-single-item url dir)))))
 
 ;(let ((config (with-open-file (f "config.2") (read f)))) (apply #'sync config))
-;(let ((config (with-open-file (f "config") (read f)))) (apply #'new-ebook config))
+;(let ((config (with-open-file (f "config") (read f)))) (apply #'ebook-from-feeds config))
 ;(sync-feed :title "Компьютерра" :name "index" :uri "http://www.computerra.ru/rss-sub-sgolub.xml" :days 8 :cache t)
 ;(sync-feed :title "Башорг" :name "bashorg" :uri "http://bash.org.ru/rss" :days 2)
