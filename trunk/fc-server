@@ -35,7 +35,7 @@ code = r""""
         (b-err (make-broadcast-stream stream *error-output*)))
     (let ((*standard-output* b-out)
           (*error-output* b-err))
-      (apply #'feedcircuit:new-ebook config))))
+      (apply #'feedcircuit:ebook-from-feeds config))))
 
 (let* ((server (sfs:make-s-http-server :port 8889))
        (config-file "config")

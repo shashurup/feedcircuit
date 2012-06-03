@@ -1,6 +1,6 @@
 (defpackage :feedcircuit
   (:use :common-lisp)
-  (:export :sync :new-ebook :list-ebooks))
+  (:export :sync :ebook-from-feeds :ebook-from-urls :list-ebooks))
 
 (in-package :feedcircuit)
 
@@ -612,23 +612,6 @@
         (format t "Packing ~a~%" path)
         (zip:write-zipentry zf path f :do-not-compress do-not-compress)))))
 
-(defun pack-ebook (path &optional cmd)
-  (multiple-value-bind (v1 v2 v3 d m y) (get-decoded-time) (declare (ignore v1 v2 v3))
-    (let ((epub
-            (loop for n = 1 then (1+ n)
-                  thereis (let ((fpath (merge-pathnames
-                                         (make-pathname :directory '(:relative :up)
-                                                        :name (format nil "fc-~a-~a-~a-~a" y m d n)
-                                                        :type "epub") path))) 
-                            (if (null (probe-file fpath)) fpath))))) 
-      (if cmd
-        #+sbcl (sb-ext:run-program cmd (list (namestring path) (namestring epub)))
-        (zip:with-output-to-zipfile (zf epub)
-          (pack-item zf path "mimetype" t)
-          (pack-item zf path "META-INF/")
-          (pack-item zf path "OEBPS/"))) 
-      (file-namestring epub))))
-
 (defun generate-ebook-name (dir)
   (multiple-value-bind (v1 v2 v3 d m y) (get-decoded-time) (declare (ignore v1 v2 v3)) 
     (loop for n = 1 then (1+ n)
@@ -664,24 +647,6 @@
             (pack-item zf ebook-root "META-INF/")
             (pack-item zf ebook-root "OEBPS/"))  
           (file-namestring epub)))
-      (cl-fad:delete-directory-and-files ebook-root :if-does-not-exist :ignore))))
-
-(defun new-ebook (&key (root-dir "") (cache-dir *cache-dir*) (days 8) pack-cmd feeds)
-  (let* ((*xhtml* t)
-         (ebook-root (merge-pathnames (make-pathname :directory (list :relative (new-uid)))
-                                      (merge-pathnames root-dir)))
-         (html-root (merge-pathnames (make-pathname :directory '(:relative "OEBPS")) ebook-root)))
-    (unwind-protect
-      (let* ((index-file (merge-pathnames ".index" (merge-pathnames root-dir)))
-             (toc (sync :root-dir (namestring html-root) :cache-dir cache-dir :feeds feeds :index-file index-file)) 
-             (files (list-files html-root))) 
-        (when toc
-          (get-rid-of-old-ebooks root-dir days)
-          (write-xml (create-ncx toc) html-root "toc.ncx")
-          (write-xml (create-opf toc files) html-root "root.opf")
-          (write-mimetype ebook-root)
-          (write-container ebook-root)
-          (pack-ebook ebook-root pack-cmd)))
       (cl-fad:delete-directory-and-files ebook-root :if-does-not-exist :ignore))))
 
 (defun ebook-from-feeds (&key (work-dir "") (cache-dir *cache-dir*) (days 8) feeds)
