@@ -257,10 +257,12 @@
 (defun process-content (uri cache-id) 
   (destructuring-bind (title blocks) (select-content uri)
     (let ((blocks (if (keywordp (caar blocks)) (list blocks) blocks)))
-      (create-page
-        *page-template*
-        title
-        (loop for (bl uri) in blocks append (process-block bl uri cache-id)))))) 
+      (values
+        (create-page
+          *page-template*
+          title
+          (loop for (bl uri) in blocks append (process-block bl uri cache-id)))
+        title)))) 
 
 (defparameter *xhtml* nil)
 
@@ -274,9 +276,10 @@
 
 (defun cache-content (uri cache-id)
   (let ((filepath (make-path (new-uid) "html" cache-id)))
-    (lhtml-save (process-content uri cache-id) filepath)
-    (download-queued)
-    filepath))
+    (multiple-value-bind (content title) (process-content uri cache-id)
+      (lhtml-save content filepath) 
+      (download-queued) 
+      (values filepath title))))
 
 (defun fix-timezone (str)
   "Makes time string HTTP compatible so drakma could parse it."
@@ -444,6 +447,17 @@
                           (list (third link) (lhtml-get-attr-value link :href))))))
     (if items (append (list title (file-namestring path)) 
                       (remove-if #'(lambda (x) (puri:uri-host (puri:parse-uri (second x)))) items)))))
+
+(defun cache-single-item (url root-dir)
+  (printing-errors nil
+    (let ((puri:*strict-parse* nil)
+          (chunga:*accept-bogus-eols* t)
+          (*cache* (make-hash-table :test #'equal))
+          (*root-dir* (pathname root-dir))
+          (*cache-dir* "")
+          (*page-template* (chtml:parse *default-page-template* (chtml:make-lhtml-builder)))) 
+    (multiple-value-bind (path title) (cache-content url "")
+      (list title (file-namestring path))))))
 
 (defun sync-feed (&key (name "index") (title "feedcircuit") 
                        uri cache include exclude days
