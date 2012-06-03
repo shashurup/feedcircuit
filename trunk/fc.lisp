@@ -448,12 +448,12 @@
     (if items (append (list title (file-namestring path)) 
                       (remove-if #'(lambda (x) (puri:uri-host (puri:parse-uri (second x)))) items)))))
 
-(defun cache-single-item (url root-dir)
+(defun cache-single-item (url work-dir)
   (printing-errors nil
     (let ((puri:*strict-parse* nil)
           (chunga:*accept-bogus-eols* t)
           (*cache* (make-hash-table :test #'equal))
-          (*root-dir* (pathname root-dir))
+          (*root-dir* (pathname work-dir))
           (*cache-dir* "")
           (*page-template* (chtml:parse *default-page-template* (chtml:make-lhtml-builder)))) 
     (multiple-value-bind (path title) (cache-content url "")
@@ -629,15 +629,42 @@
           (pack-item zf path "OEBPS/"))) 
       (file-namestring epub))))
 
-(defun list-ebooks (root-dir)
-  (let ((pattern (merge-pathnames (make-pathname :name :wild :type "epub") root-dir)))
+(defun generate-ebook-name (dir)
+  (multiple-value-bind (v1 v2 v3 d m y) (get-decoded-time) (declare (ignore v1 v2 v3)) 
+    (loop for n = 1 then (1+ n)
+                    thereis (let ((fpath (merge-pathnames
+                                           (format nil "fc-~a-~a-~a-~a.epub" y m d n) dir))) 
+                              (if (null (probe-file fpath)) fpath)))))
+
+(defun list-ebooks (dir)
+  (let ((pattern (merge-pathnames (make-pathname :name :wild :type "epub") dir)))
     (loop for epub in (directory pattern)
           when (eql (search "fc" (pathname-name epub)) 0) collect epub)))
 
-(defun get-rid-of-old-ebooks (root-dir days)
+(defun get-rid-of-old-ebooks (dir days)
   (let ((tm (- (get-universal-time) (* days 24 60 60)))) 
-    (loop for epub in (list-ebooks root-dir) do
+    (loop for epub in (list-ebooks dir) do
           (if (< (file-write-date epub) tm) (delete-file epub)))))
+
+(defun make-ebook (work-dir epub prepare-fn)
+  (let* ((*xhtml* t)
+         (ebook-root (merge-pathnames (make-pathname :directory (list :relative (new-uid)))
+                                      (merge-pathnames work-dir)))
+         (html-root (merge-pathnames (make-pathname :directory '(:relative "OEBPS")) ebook-root)))
+    (unwind-protect
+      (let* ((toc (funcall prepare-fn html-root))
+             (files (list-files html-root)))
+        (when toc
+          (write-xml (create-ncx toc) html-root "toc.ncx")
+          (write-xml (create-opf toc files) html-root "root.opf")
+          (write-mimetype ebook-root)
+          (write-container ebook-root)
+          (zip:with-output-to-zipfile (zf epub)
+            (pack-item zf ebook-root "mimetype" t)
+            (pack-item zf ebook-root "META-INF/")
+            (pack-item zf ebook-root "OEBPS/"))  
+          (file-namestring epub)))
+      (cl-fad:delete-directory-and-files ebook-root :if-does-not-exist :ignore))))
 
 (defun new-ebook (&key (root-dir "") (cache-dir *cache-dir*) (days 8) pack-cmd feeds)
   (let* ((*xhtml* t)
@@ -656,6 +683,10 @@
           (write-container ebook-root)
           (pack-ebook ebook-root pack-cmd)))
       (cl-fad:delete-directory-and-files ebook-root :if-does-not-exist :ignore))))
+
+(defun ebook-from-urls (urls &optional (work-dir ""))
+  (make-ebook work-dir (generate-ebook-name work-dir)
+              #'(lambda (dir) (loop for url in urls collect (cache-single-item url dir)))))
 
 ;(let ((config (with-open-file (f "config.2") (read f)))) (apply #'sync config))
 ;(let ((config (with-open-file (f "config") (read f)))) (apply #'new-ebook config))
