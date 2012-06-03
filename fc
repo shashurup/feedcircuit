@@ -2,4 +2,4 @@
 (load "~/quicklisp/setup.lisp")
 (ql:quickload 'feedcircuit)
 (let ((config (with-open-file (f "config") (read f))))
-  (apply #'feedcircuit:new-ebook config))
+  (apply #'feedcircuit:ebook-from-feeds config))
