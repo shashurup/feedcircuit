@@ -7,6 +7,8 @@ code = r""""
 (load "~/quicklisp/setup.lisp")
 (ql:quickload 'feedcircuit)
 (ql:quickload 's-http-server)
+(ql:quickload 's-utils)
+(ql:quickload 'puri)
 (rename-package :s-http-server :sfs)
 
 (defun write-text-response (request stream &optional text)
@@ -37,6 +39,27 @@ code = r""""
           (*error-output* b-err))
       (apply #'feedcircuit:ebook-from-feeds config))))
 
+(defun parse-query (query)
+  (flet ((split (str sep) (s-utils:tokens str :separators (list sep)))
+         (unescape (str) (puri::decode-escaped-encoding str t nil)))
+    (mapcar #'(lambda (param) (mapcar #'unescape (split param #\=)))
+            (split query #\&))))
+
+(defun get-urls (query)
+  (let ((params (parse-query query)))
+    (mapcar #'second
+            (remove-if-not #'(lambda (param) (equalp (first param) "url")) params))))
+
+(defun grab-handler (server handler request stream)
+  (declare (ignore server))
+  (let ((urls (get-urls (puri:uri-query (sfs:get-uri request))))
+        (b-out (make-broadcast-stream stream *standard-output*))
+        (b-err (make-broadcast-stream stream *error-output*)))
+    (let ((*standard-output* b-out)
+          (*error-output* b-err))
+      (write-text-response request stream)
+      (write-string (feedcircuit:ebook-from-urls urls (second handler)) stream))))
+
 (let* ((server (sfs:make-s-http-server :port 8889))
        (config-file "config")
        (config (with-open-file (f config-file) (read f)))
@@ -44,6 +67,8 @@ code = r""""
   (sfs:register-context-handler server "/sync" #'sync-handler
     :arguments (list config-file))
   (sfs:register-context-handler server "/list" #'list-handler
+    :arguments (list root-dir))
+  (sfs:register-context-handler server "/grab" #'grab-handler
     :arguments (list root-dir))
   (sfs:register-context-handler server "/" #'sfs:static-resource-handler
     :arguments (list root-dir) :at-end-p t)
