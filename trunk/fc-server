@@ -63,15 +63,15 @@ code = r""""
 (let* ((server (sfs:make-s-http-server :port 8889))
        (config-file "config")
        (config (with-open-file (f config-file) (read f)))
-       (root-dir (namestring (merge-pathnames (or (getf config :root-dir) "")))))
+       (work-dir (namestring (merge-pathnames (or (getf config :work-dir) "")))))
   (sfs:register-context-handler server "/sync" #'sync-handler
     :arguments (list config-file))
   (sfs:register-context-handler server "/list" #'list-handler
-    :arguments (list root-dir))
+    :arguments (list work-dir))
   (sfs:register-context-handler server "/grab" #'grab-handler
-    :arguments (list root-dir))
+    :arguments (list work-dir))
   (sfs:register-context-handler server "/" #'sfs:static-resource-handler
-    :arguments (list root-dir) :at-end-p t)
+    :arguments (list work-dir) :at-end-p t)
   (sfs:start-server server)
   (handler-case (read) (serious-condition ())))
 
