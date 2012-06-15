@@ -209,13 +209,13 @@
 
 (defparameter *cache* (make-hash-table :test #'equal))
 
-(defparameter *root-dir* (make-pathname))
+(defparameter *work-dir* (make-pathname))
 
 (defparameter *cache-dir* ".cache")
 
 (defun make-path (name type &optional cache-id)
   (let ((dir (if cache-id (list :relative *cache-dir* cache-id))))
-    (merge-pathnames (make-pathname :name name :type type :directory dir) *root-dir*)))
+    (merge-pathnames (make-pathname :name name :type type :directory dir) *work-dir*)))
 
 (defun make-local-uri (path rel)
   (if rel (format nil "~a/~a/~a.~a" *cache-dir* rel (pathname-name path) (pathname-type path))
@@ -453,7 +453,7 @@
     (let ((puri:*strict-parse* nil)
           (chunga:*accept-bogus-eols* t)
           (*cache* (make-hash-table :test #'equal))
-          (*root-dir* (pathname work-dir))
+          (*work-dir* (pathname work-dir))
           (*cache-dir* "")
           (*page-template* (chtml:parse *default-page-template* (chtml:make-lhtml-builder)))) 
     (multiple-value-bind (path title) (cache-content url "")
@@ -499,8 +499,8 @@
                 (when new-items (lhtml-save html path) (update-index index-file uri new-index))
                 (create-toc title path html)))))))))
 
-(defun sync (&key (root-dir "") (cache-dir *cache-dir*) index-file feeds)
-  (let ((*root-dir* (pathname root-dir))
+(defun sync (&key (work-dir "") (cache-dir *cache-dir*) index-file feeds)
+  (let ((*work-dir* (pathname work-dir))
         (*cache-dir* cache-dir))
     (remove-duplicates
       (loop for feed-cfg in feeds
@@ -653,7 +653,7 @@
   (let* ((index-file (merge-pathnames ".index" (merge-pathnames work-dir)))
          (result (make-ebook work-dir
                              (generate-ebook-name work-dir)
-                              #'(lambda (dir) (sync :root-dir (namestring dir)
+                              #'(lambda (dir) (sync :work-dir (namestring dir)
                                                     :cache-dir cache-dir
                                                     :feeds feeds 
                                                     :index-file index-file))))) 
