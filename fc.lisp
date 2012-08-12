@@ -110,7 +110,7 @@
                  (let ((cr (lhtml-calc-criterion tag self)))
                    (if (> cr (cdr result)) (setf result (cons tag cr)))
                    cr))))
-      (fn html #'fn)
+      (fn (lhtml-find-tag html :body) #'fn)
       (car result))))
 
 (defparameter *uri-octets-to-escape*
