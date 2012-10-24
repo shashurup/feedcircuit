@@ -463,7 +463,8 @@
                        uri cache include exclude days
                        print-version-strs no-print-version
                        single-page-strs no-single-page
-                       next-page-strs no-next-page index-file strip-feed-ads) 
+                       next-page-strs no-next-page index-file
+                       content-tag strip-feed-ads) 
   (printing-errors nil
     (let ((puri:*strict-parse* nil)
           (chunga:*accept-bogus-eols* t)
@@ -476,7 +477,8 @@
           (*single-page-strs* (or single-page-strs
                                   (if (not no-single-page) *single-page-strs*)))
           (*next-page-strs* (or next-page-strs
-                                (if (not no-next-page) *next-page-strs*))))
+                                (if (not no-next-page) *next-page-strs*)))
+          (*content-tag* content-tag))
       (format t "Grabbing ~a~%" (or title name))
       (destructuring-bind (*feed-template* *page-template* *item-template*) (load-templates name)
         (let* ((feed-html (load-feed-html name title))
