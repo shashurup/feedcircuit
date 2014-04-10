@@ -618,7 +618,7 @@
   (multiple-value-bind (v1 v2 v3 d m y) (get-decoded-time) (declare (ignore v1 v2 v3)) 
     (loop for n = 1 then (1+ n)
                     thereis (let ((fpath (merge-pathnames
-                                           (format nil "fc-~a-~a-~a-~a.epub" y m d n) dir))) 
+                                           (format nil "fc-~a-~2,'0d-~2,'0d-~a.epub" y m d n) dir))) 
                               (if (null (probe-file fpath)) fpath)))))
 
 (defun list-ebooks (dir)
